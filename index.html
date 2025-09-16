@@ -34,17 +34,19 @@
             text-align: center;
             cursor: pointer;
             transition: transform 0.2s;
+            color: white;
         }
         .summary-card:hover {
             transform: translateY(-5px);
         }
         .summary-card h3 {
             margin-top: 0;
+            color: white;
         }
         .summary-card .count {
             font-size: 2.5em;
             font-weight: bold;
-            color: #007bff;
+            color: white;
         }
         #fullList {
             background: #fff;
@@ -108,6 +110,22 @@
             color: black;
             text-decoration: none;
             cursor: pointer;
+        }
+        #card-כן {
+            background-color: #4CAF50; /* ירוק */
+        }
+        #card-לא {
+            background-color: #F44336; /* אדום */
+        }
+        #card-אולי {
+            background-color: #FF9800; /* כתום */
+        }
+        #card-אין-מענה {
+            background-color: #6c757d; /* אפור */
+        }
+        /* סמן באדום שורות ללא מספר טלפון */
+        .highlight-red {
+            background-color: #ffcccc !important; 
         }
     </style>
 </head>
@@ -183,6 +201,13 @@
                 const response = await fetch(SCRIPT_URL);
                 const data = await response.json();
                 
+                // מיון הנתונים לפי שם מלא בסדר אלפביתי
+                data.sort((a, b) => {
+                    const nameA = a.fullName || '';
+                    const nameB = b.fullName || '';
+                    return nameA.localeCompare(nameB, 'he', { sensitivity: 'base' });
+                });
+                
                 loadingMessage.style.display = 'none';
                 
                 let stats = {
@@ -201,6 +226,11 @@
 
                 data.forEach(row => {
                     const tr = document.createElement('tr');
+                    
+                    if (row.fullName && (!row.phoneNumber || row.phoneNumber.trim() === '')) {
+                        tr.classList.add('highlight-red');
+                    }
+                    
                     tr.innerHTML = `
                         <td>${row.fullName}</td>
                         <td>${row.phoneNumber}</td>
@@ -209,15 +239,12 @@
                     `;
                     dataTableBody.appendChild(tr);
 
-                    const statusKey = row.status ? row.status.toLowerCase() : 'אין-מענה';
+                    const statusKey = (row.status || '').toLowerCase().replace(' ', '-') || 'אין-מענה';
                     const peopleCount = parseInt(row.count, 10) || 0;
                     
                     if (stats[statusKey] !== undefined) {
                         stats[statusKey] += peopleCount;
                         peopleLists[statusKey].push(row);
-                    } else if (!row.status) {
-                        stats['אין-מענה'] += peopleCount;
-                        peopleLists['אין-מענה'].push(row);
                     }
                 });
 
@@ -236,11 +263,23 @@
                         const status = card.id.split('-')[1];
                         const list = peopleLists[status];
                         
+                        // מיון הרשימה בחלון הקופץ
+                        list.sort((a, b) => {
+                            const nameA = a.fullName || '';
+                            const nameB = b.fullName || '';
+                            return nameA.localeCompare(nameB, 'he', { sensitivity: 'base' });
+                        });
+
                         modalTitle.textContent = `רשימת ${card.querySelector('h3').textContent}`;
                         modalTableBody.innerHTML = '';
                         
                         list.forEach(person => {
                             const tr = document.createElement('tr');
+                            
+                            if (person.fullName && (!person.phoneNumber || person.phoneNumber.trim() === '')) {
+                                tr.classList.add('highlight-red');
+                            }
+                            
                             tr.innerHTML = `
                                 <td>${person.fullName}</td>
                                 <td>${person.phoneNumber}</td>
