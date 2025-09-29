@@ -123,9 +123,31 @@
         #card-אין-מענה {
             background-color: #6c757d; /* אפור */
         }
-        /* סמן באדום שורות ללא מספר טלפון */
+        /* סימון אדום: אין מספר טלפון */
         .highlight-red {
             background-color: #ffcccc !important; 
+        }
+        /* סימון בורדו: כפילויות במספרי טלפון */
+        .highlight-maroon {
+            background-color: #c47b7b !important; 
+        }
+
+        /* סגנון לשדה החיפוש */
+        .search-container {
+            display: flex;
+            margin-bottom: 20px;
+            direction: rtl;
+        }
+        .search-container input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px 4px 4px 4px; 
+            font-size: 16px;
+        }
+        /* הסרת כפתור החיפוש בגלל המעבר לסינון אוטומטי */
+        .search-container button {
+            display: none; 
         }
     </style>
 </head>
@@ -133,19 +155,19 @@
     <div class="container">
         <h1>לוח בקרה אישורי הגעה</h1>
         <div class="summary-grid">
-            <div class="summary-card" id="card-כן">
+            <div class="summary-card" id="card-כן" data-status="כן">
                 <h3>מגיעים</h3>
                 <p class="count" id="count-כן">0</p>
             </div>
-            <div class="summary-card" id="card-לא">
+            <div class="summary-card" id="card-לא" data-status="לא">
                 <h3>לא מגיעים</h3>
                 <p class="count" id="count-לא">0</p>
             </div>
-            <div class="summary-card" id="card-אולי">
+            <div class="summary-card" id="card-אולי" data-status="אולי">
                 <h3>אולי</h3>
                 <p class="count" id="count-אולי">0</p>
             </div>
-            <div class="summary-card" id="card-אין-מענה">
+            <div class="summary-card" id="card-אין-מענה" data-status="אין מענה">
                 <h3>אין מענה</h3>
                 <p class="count" id="count-אין-מענה">0</p>
             </div>
@@ -153,6 +175,10 @@
 
         <div id="fullList">
             <h2>רשימה מלאה</h2>
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="חפש שם מלא או מספר טלפון" oninput="filterTable()">
+                <button id="searchButton" style="display: none;">🔍</button> 
+            </div>
             <p id="loadingMessage">טוען נתונים...</p>
             <div class="table-responsive">
                 <table id="dataTable">
@@ -191,8 +217,82 @@
     </div>
 
     <script>
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxCi6cq9I95eJ4wG7kUIjFkAf5xm3HPCZZBKd6MybYB7SYius0ppgkK3rlevE6wYgE0-w/exec';
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxRu3AL4ZOdLhLHx-t1CrtFqx7krmMyRmAOpsek9sXrPinvCHMuMjs3PK1a6W4z9gDe5g/exec';
+        let allData = []; 
+        let peopleLists = {}; 
 
+        // פונקציה לטיפול בכפילויות וסימון השורות
+        function processAndRenderTable(data, tableBody, isModal = false) {
+            tableBody.innerHTML = '';
+            
+            // 1. ספירת תדירות מספרי הטלפון
+            const phoneCounts = {};
+            data.forEach(row => {
+                const normalizedPhone = (row.phoneNumber || '').replace(/[\s\-\_]/g, '');
+                if (normalizedPhone) {
+                    phoneCounts[normalizedPhone] = (phoneCounts[normalizedPhone] || 0) + 1;
+                }
+            });
+
+            // 2. רינדור השורות וסימון
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                const normalizedPhone = (row.phoneNumber || '').replace(/[\s\-\_]/g, '');
+                const hasPhone = !!normalizedPhone;
+
+                // סימון אדום: אין מספר טלפון
+                if (row.fullName && !hasPhone) {
+                    tr.classList.add('highlight-red');
+                }
+                
+                // סימון בורדו: כפילות במספר טלפון
+                if (hasPhone && phoneCounts[normalizedPhone] > 1) {
+                    tr.classList.add('highlight-maroon');
+                }
+                
+                // בניית תוכן השורה
+                if (isModal) {
+                    tr.innerHTML = `
+                        <td>${row.fullName || ''}</td>
+                        <td>${row.phoneNumber || ''}</td>
+                        <td>${row.count || ''}</td>
+                    `;
+                } else {
+                    tr.innerHTML = `
+                        <td>${row.fullName || ''}</td>
+                        <td>${row.phoneNumber || ''}</td>
+                        <td>${row.status || ''}</td>
+                        <td>${row.count || ''}</td>
+                    `;
+                }
+                
+                tableBody.appendChild(tr);
+            });
+        }
+        
+        // פונקציה לסינון הרשימה המלאה - מופעלת אוטומטית בכל הקלדה
+        window.filterTable = function() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+            const dataTableBody = document.querySelector('#dataTable tbody');
+            
+            if (!searchTerm) {
+                // מציג את כל הנתונים המקוריים
+                processAndRenderTable(allData, dataTableBody);
+                return;
+            }
+
+            const filteredData = allData.filter(row => {
+                const fullName = (row.fullName || '').toLowerCase();
+                const phoneNumber = (row.phoneNumber || '').toLowerCase();
+                
+                // בדיקה אם מונח החיפוש כלול בשם המלא או במספר הטלפון
+                return fullName.includes(searchTerm) || phoneNumber.includes(searchTerm);
+            });
+
+            processAndRenderTable(filteredData, dataTableBody);
+        }
+        
         document.addEventListener('DOMContentLoaded', async () => {
             const dataTableBody = document.querySelector('#dataTable tbody');
             const loadingMessage = document.getElementById('loadingMessage');
@@ -201,8 +301,8 @@
                 const response = await fetch(SCRIPT_URL);
                 const data = await response.json();
                 
-                // מיון הנתונים לפי שם מלא בסדר אלפביתי
-                data.sort((a, b) => {
+                // שמירת הנתונים המקוריים ומיון
+                allData = data.sort((a, b) => {
                     const nameA = a.fullName || '';
                     const nameB = b.fullName || '';
                     return nameA.localeCompare(nameB, 'he', { sensitivity: 'base' });
@@ -217,28 +317,14 @@
                     'אין-מענה': 0
                 };
                 
-                let peopleLists = {
+                peopleLists = {
                     'כן': [],
                     'לא': [],
                     'אולי': [],
                     'אין-מענה': []
                 };
 
-                data.forEach(row => {
-                    const tr = document.createElement('tr');
-                    
-                    if (row.fullName && (!row.phoneNumber || row.phoneNumber.trim() === '')) {
-                        tr.classList.add('highlight-red');
-                    }
-                    
-                    tr.innerHTML = `
-                        <td>${row.fullName}</td>
-                        <td>${row.phoneNumber}</td>
-                        <td>${row.status || ''}</td>
-                        <td>${row.count || ''}</td>
-                    `;
-                    dataTableBody.appendChild(tr);
-
+                allData.forEach(row => {
                     const statusKey = (row.status || '').toLowerCase().replace(' ', '-') || 'אין-מענה';
                     const peopleCount = parseInt(row.count, 10) || 0;
                     
@@ -248,6 +334,10 @@
                     }
                 });
 
+                // רינדור הטבלה המלאה
+                processAndRenderTable(allData, dataTableBody);
+
+                // עדכון הספירות בכרטיסי הסיכום
                 document.getElementById('count-כן').textContent = stats['כן'];
                 document.getElementById('count-לא').textContent = stats['לא'];
                 document.getElementById('count-אולי').textContent = stats['אולי'];
@@ -258,11 +348,17 @@
                 const modalTableBody = document.querySelector('#modalTable tbody');
                 const closeModal = document.querySelector('.close');
 
+                // אין צורך ב-event listener נפרד ל-keypress/Enter כיוון שה-oninput מטפל בזה
+
                 document.querySelectorAll('.summary-card').forEach(card => {
                     card.addEventListener('click', () => {
-                        const status = card.id.split('-')[1];
-                        const list = peopleLists[status];
+                        const rawStatus = card.getAttribute('data-status');
+                        const statusKey = rawStatus.toLowerCase().replace(' ', '-'); 
+
+                        const list = peopleLists[statusKey];
                         
+                        if (!list) return; 
+
                         // מיון הרשימה בחלון הקופץ
                         list.sort((a, b) => {
                             const nameA = a.fullName || '';
@@ -271,22 +367,9 @@
                         });
 
                         modalTitle.textContent = `רשימת ${card.querySelector('h3').textContent}`;
-                        modalTableBody.innerHTML = '';
                         
-                        list.forEach(person => {
-                            const tr = document.createElement('tr');
-                            
-                            if (person.fullName && (!person.phoneNumber || person.phoneNumber.trim() === '')) {
-                                tr.classList.add('highlight-red');
-                            }
-                            
-                            tr.innerHTML = `
-                                <td>${person.fullName}</td>
-                                <td>${person.phoneNumber}</td>
-                                <td>${person.count || ''}</td>
-                            `;
-                            modalTableBody.appendChild(tr);
-                        });
+                        // שימוש בפונקציית הרינדור גם עבור המודאל כדי לסמן כפילויות
+                        processAndRenderTable(list, modalTableBody, true);
 
                         modal.style.display = 'block';
                     });
